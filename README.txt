@@ -58,14 +58,22 @@ the Model-View-Controller (MVC) architectural pattern:
 ------------------------------------------------------------------------
 3. HOW TO COMPILE AND RUN (COMMAND LINE)
 ------------------------------------------------------------------------
-Open Command Prompt (cmd) or PowerShell in this project folder:
+Open Command Prompt (cmd), PowerShell, or Terminal in this project folder:
 
 A. COMPILATION COMMAND:
-   javac -cp ".;sqlite-jdbc-3.53.2.1.jar" DatabaseModel.java MainView.java AppController.java Main.java
+   • Windows (Command Prompt / PowerShell):
+     javac -cp ".;sqlite-jdbc-3.53.2.1.jar" DatabaseModel.java MainView.java AppController.java Main.java
+
+   • macOS / Linux:
+     javac -cp ".:sqlite-jdbc-3.53.2.1.jar" DatabaseModel.java MainView.java AppController.java Main.java
 
 B. EXECUTION COMMAND:
-   java -cp ".;sqlite-jdbc-3.53.2.1.jar" Main
+   • Windows (Command Prompt / PowerShell):
+     java -cp ".;sqlite-jdbc-3.53.2.1.jar" Main
 
-(Note: The '.;' ensures Java looks in both current directory and the SQLite jar)
+   • macOS / Linux:
+     java -cp ".:sqlite-jdbc-3.53.2.1.jar" Main
+
+(Note: The '.;' on Windows or '.:' on macOS/Linux ensures Java looks in both the current directory and the SQLite JDBC jar)
 
 ========================================================================
