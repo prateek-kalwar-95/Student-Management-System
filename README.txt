@@ -1,6 +1,6 @@
 ========================================================================
 STUDENT MANAGEMENT SYSTEM (Java Swing GUI + SQLite JDBC)
-MVC Architecture
+MVC Architecture – Advanced Feature Integration
 ========================================================================
 
 Class Group: A1
@@ -10,12 +10,13 @@ Project Title: Student Management System
 ------------------------------------------------------------------------
 1. PROJECT OVERVIEW & FEATURES
 ------------------------------------------------------------------------
-This project implements a complete Student Management System following 
-the Model-View-Controller (MVC) architectural pattern:
+This project implements an enhanced, complete Student Management System 
+following the Model-View-Controller (MVC) architectural pattern:
 
 - MODEL (DatabaseModel.java):
   * Manages SQLite database connection to 'student_management.db'.
-  * Implements relational schema with foreign key constraints.
+  * Automatic foreign key enforcement on every connection.
+  * Composite UNIQUE(roll_no, course_code) constraint and index.
   * Handles full CRUD operations (Create, Read, Update, Delete) for:
       - Students (Roll No, Name, Email, Department, Phone)
       - Courses (Course Code, Course Name, Credits, Instructor)
@@ -33,47 +34,76 @@ the Model-View-Controller (MVC) architectural pattern:
 - VIEW (MainView.java):
   * Modern Java Swing graphical user interface with System Look-and-Feel.
   * 4 Organized Tabbed Panels:
-      1. Students Management: Form, live search filter, and interactive JTable.
+      1. Students Management: Form, live search filter, interactive JTable, and 'View Student Report' button (green with hover effect).
       2. Courses Management: Form, live search filter, and interactive JTable.
-      3. Enrollments & Grading: Student/Course dropdowns, live grade preview, JTable.
-      4. Dashboard & Reports: KPI Cards and Attendance Shortage Alert Table (<75%).
-  * Clicking any row in a table automatically loads its data into the form.
+      3. Enrollments & Grading: Unique student/course dropdowns, enrolled courses summary, color-coded JTable.
+      4. Dashboard & Reports: KPI Cards and Attendance Shortage Alert Table (<75%) with color coding.
 
 - CONTROLLER (AppController.java):
   * Mediates between View events and Model database calls.
-  * Input validations and live error/success dialogs.
-  * Live dynamic search filtering across tables.
-  * Live calculation preview as user types attendance and exam scores.
-
-- ENTRY POINT (Main.java):
-  * Launches the application on the Event Dispatch Thread (SwingUtilities).
+  * Asynchronous processing (SwingWorker) for PDF export and email dispatch.
+  * Enforces duplicate enrollment validation.
 
 ------------------------------------------------------------------------
-2. PREREQUISITES
+2. ADVANCED INTEGRATED FEATURES
 ------------------------------------------------------------------------
-- Java Development Kit (JDK 17 or higher, tested on JDK 25)
-- SQLite JDBC Driver JAR: sqlite-jdbc-3.53.2.1.jar (or 3.x)
-  (Keep the JAR in the same folder as the .java source files)
+FEATURE 1: Attendance-Based Dynamic Color Coding (AttendanceCellRenderer.java)
+- >= 75%: Soft Green (#D4EDDA) - Safe
+- 50% - 74.9%: Pale Yellow (#FFF3CD) - Warning
+- < 50%: Soft Red (#F8D7DA) - Danger
+- Applied to Enrollments Table, Shortage Alert Table, and Individual Report Table.
+
+FEATURE 2: Duplicate Prevention in Enrollments & Grading
+- Populates unique students in the student dropdown.
+- Displays enrolled courses for the selected student separately.
+- Displays validation message: "This student is already enrolled in the selected course."
+- Enforced at business logic and database level (composite UNIQUE constraint).
+
+FEATURE 3: Comprehensive Individual Student Report (StudentReportView.java)
+- Dedicated "View Student Report" buttons in Students Management (form and table).
+- Styled in high-visibility green (#198754) with hover (#146c43) and bold white text.
+- Displays personal details, academic KPIs, attendance shortage alerts, and course-wise breakdown.
+- Export to PDF, Print, and Email buttons.
+
+FEATURE 4: PDF Export & Email Delivery (PDFReportGenerator.java & EmailService.java)
+- Generates high-resolution vector PDF reports (pure Java).
+- Sends email via Jakarta Mail with PDF attachment after user confirmation.
+- Send Report via Email button styled green with hover feedback.
+- Configuration Priority:
+  1. Environment variables: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
+  2. Configuration file: smtp.properties (template in smtp.properties.example)
 
 ------------------------------------------------------------------------
-3. HOW TO COMPILE AND RUN (COMMAND LINE)
+3. EXTERNAL DEPENDENCIES & VS CODE CLASSPATH
 ------------------------------------------------------------------------
-Open Command Prompt (cmd), PowerShell, or Terminal in this project folder:
+Libraries are located in both the 'lib/' directory and project root:
+- SQLite JDBC Driver: lib/sqlite-jdbc-3.53.2.1.jar
+- Jakarta Mail: lib/jakarta.mail-2.0.1.jar
+- Jakarta Activation: lib/jakarta.activation-2.0.1.jar
+
+VS Code Configuration:
+- '.vscode/settings.json' and '.classpath' are pre-configured so that VS Code
+  instantly resolves all Jakarta Mail and SQLite imports without error.
+
+------------------------------------------------------------------------
+4. HOW TO COMPILE AND RUN (COMMAND LINE)
+------------------------------------------------------------------------
+Open Command Prompt (cmd), PowerShell, or Terminal in this folder:
 
 A. COMPILATION COMMAND:
-   • Windows (Command Prompt / PowerShell):
-     javac -cp ".;sqlite-jdbc-3.53.2.1.jar" DatabaseModel.java MainView.java AppController.java Main.java
+   • Windows:
+     javac -cp ".;lib/*" *.java
+     (or: javac -cp ".;*" *.java)
 
    • macOS / Linux:
-     javac -cp ".:sqlite-jdbc-3.53.2.1.jar" DatabaseModel.java MainView.java AppController.java Main.java
+     javac -cp ".:lib/*" *.java
 
 B. EXECUTION COMMAND:
-   • Windows (Command Prompt / PowerShell):
-     java -cp ".;sqlite-jdbc-3.53.2.1.jar" Main
+   • Windows:
+     java -cp ".;lib/*" Main
+     (or: java -cp ".;*" Main)
 
    • macOS / Linux:
-     java -cp ".:sqlite-jdbc-3.53.2.1.jar" Main
-
-(Note: The '.;' on Windows or '.:' on macOS/Linux ensures Java looks in both the current directory and the SQLite JDBC jar)
+     java -cp ".:lib/*" Main
 
 ========================================================================

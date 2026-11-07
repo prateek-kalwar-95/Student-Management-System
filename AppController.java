@@ -8,8 +8,12 @@ import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;
 import java.awt.Color;
+import java.awt.Component;
+import java.io.File;
+import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
+import javax.swing.filechooser.FileNameExtensionFilter;
 
 /**
  * CONTROLLER: Coordinates interactions between MainView and DatabaseModel.
@@ -19,6 +23,7 @@ import java.util.List;
 public class AppController {
     private final DatabaseModel model;
     private final MainView view;
+    private int currentEditingEnrollmentId = -1; // -1 indicates Add mode, >=0 indicates Update mode
 
     public AppController(DatabaseModel model, MainView view) {
         this.model = model;
@@ -34,6 +39,10 @@ public class AppController {
         view.btnStudUpdate.addActionListener(e -> handleUpdateStudent());
         view.btnStudDelete.addActionListener(e -> handleDeleteStudent());
         view.btnStudClear.addActionListener(e -> clearStudentForm());
+
+        // FEATURE 3: View Individual Student Report listeners
+        view.btnStudViewReport.addActionListener(e -> handleOpenStudentReport());
+        view.btnStudViewReportTable.addActionListener(e -> handleOpenStudentReport());
 
         // When table row is clicked, populate fields
         view.studTable.getSelectionModel().addListSelectionListener(e -> {
@@ -77,9 +86,15 @@ public class AppController {
         view.btnEnrollDelete.addActionListener(e -> handleDeleteEnrollment());
         view.btnEnrollClear.addActionListener(e -> clearEnrollmentForm());
 
+        // FEATURE 2: Update enrolled courses summary whenever student dropdown selection changes
+        view.comboEnrollStudent.addActionListener(e -> updateEnrolledCoursesSummaryForSelectedStudent());
+
         view.enrollTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && view.enrollTable.getSelectedRow() != -1) {
                 int modelRow = view.enrollTable.convertRowIndexToModel(view.enrollTable.getSelectedRow());
+                currentEditingEnrollmentId = (int) view.enrollTableModel.getValueAt(modelRow, 0);
+                view.btnEnrollSave.setText("Update Selected Grade");
+
                 String rollStr = view.enrollTableModel.getValueAt(modelRow, 1).toString();
                 String code = view.enrollTableModel.getValueAt(modelRow, 3).toString();
 
@@ -92,6 +107,7 @@ public class AppController {
                 view.txtAttendancePct.setText(attStr);
                 view.txtExamMarks.setText(examStr);
                 updateLiveGradePreview();
+                updateEnrolledCoursesSummaryForSelectedStudent();
             }
         });
 
@@ -164,7 +180,7 @@ public class AppController {
             view.lblStudPhoneHint.setText("Entering number: " + phone.length() + "/10 digits");
             view.lblStudPhoneHint.setForeground(new Color(230, 81, 0));
         } else {
-            view.lblStudPhoneHint.setText("✓ 10 digits completed (Limit reached)");
+            view.lblStudPhoneHint.setText("10 digits completed (Limit reached)");
             view.lblStudPhoneHint.setForeground(new Color(46, 125, 50));
         }
     }
@@ -213,7 +229,7 @@ public class AppController {
     private void loadStudents() {
         try {
             view.studTableModel.setRowCount(0);
-            List<Object[]> list = model.getAllStudents();
+            List<Object[]> list = model.getUniqueStudents();
             for (Object[] row : list) {
                 view.studTableModel.addRow(row);
             }
@@ -244,6 +260,7 @@ public class AppController {
             for (Object[] row : list) {
                 view.enrollTableModel.addRow(row);
             }
+            updateEnrolledCoursesSummaryForSelectedStudent();
         } catch (SQLException ex) {
             view.showMessage("Failed to load enrollments: " + ex.getMessage(), "Database Error",
                     JOptionPane.ERROR_MESSAGE);
@@ -277,6 +294,35 @@ public class AppController {
         view.comboEnrollStudent.removeAllItems();
         for (Object[] s : students) {
             view.comboEnrollStudent.addItem(s[0] + " - " + s[1]);
+        }
+        updateEnrolledCoursesSummaryForSelectedStudent();
+    }
+
+    private void updateEnrolledCoursesSummaryForSelectedStudent() {
+        if (view.comboEnrollStudent.getSelectedItem() == null) {
+            view.lblStudentEnrolledCourses.setText("Enrolled Courses: (None selected)");
+            return;
+        }
+
+        try {
+            String selected = (String) view.comboEnrollStudent.getSelectedItem();
+            long roll = Long.parseLong(selected.split(" - ")[0]);
+            List<Object[]> courses = model.getEnrolledCoursesForStudent(roll);
+
+            if (courses.isEmpty()) {
+                view.lblStudentEnrolledCourses.setText("Enrolled Courses: (None enrolled yet)");
+            } else {
+                StringBuilder sb = new StringBuilder("Enrolled: ");
+                for (int i = 0; i < courses.size(); i++) {
+                    Object[] c = courses.get(i);
+                    sb.append(c[1]).append(" (").append(String.format("%.1f%%", (double) c[4])).append(")");
+                    if (i < courses.size() - 1) sb.append(", ");
+                }
+                sb.append(" [").append(courses.size()).append(" total]");
+                view.lblStudentEnrolledCourses.setText(sb.toString());
+            }
+        } catch (Exception ex) {
+            view.lblStudentEnrolledCourses.setText("Enrolled Courses: (Error loading)");
         }
     }
 
@@ -521,7 +567,25 @@ public class AppController {
                 return;
             }
 
-            model.saveEnrollment(roll, courseCode, attPct, examMarks);
+            // FEATURE 2: Prevent duplicate enrollments with meaningful validation message
+            if (currentEditingEnrollmentId == -1) {
+                // Adding a new enrollment
+                if (model.isStudentEnrolledInCourse(roll, courseCode)) {
+                    view.showMessage("This student is already enrolled in the selected course.",
+                            "Duplicate Enrollment", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                model.addEnrollment(roll, courseCode, attPct, examMarks);
+            } else {
+                // Updating an existing enrollment record
+                if (model.isDuplicateEnrollment(roll, courseCode, currentEditingEnrollmentId)) {
+                    view.showMessage("This student is already enrolled in the selected course.",
+                            "Duplicate Enrollment", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                model.updateEnrollmentById(currentEditingEnrollmentId, roll, courseCode, attPct, examMarks);
+            }
+
             view.showMessage("Enrollment and Grade saved successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
             clearEnrollmentForm();
             loadEnrollments();
@@ -578,10 +642,187 @@ public class AppController {
     }
 
     private void clearEnrollmentForm() {
+        currentEditingEnrollmentId = -1;
+        view.btnEnrollSave.setText("Save / Update Grade");
         view.txtAttendancePct.setText("");
         view.txtExamMarks.setText("");
         view.lblCalculatedPreview.setText("Preview: Attendance Marks: - | Total: - | Grade: -");
         view.enrollTable.clearSelection();
+        updateEnrolledCoursesSummaryForSelectedStudent();
+    }
+
+    // ==========================================
+    // FEATURE 3 & 4: STUDENT REPORT & EMAIL
+    // ==========================================
+
+    private void handleOpenStudentReport() {
+        int selectedRow = view.studTable.getSelectedRow();
+        long roll = -1;
+
+        if (selectedRow != -1) {
+            int modelRow = view.studTable.convertRowIndexToModel(selectedRow);
+            roll = Long.parseLong(view.studTableModel.getValueAt(modelRow, 0).toString());
+        } else {
+            String rollText = view.txtStudRoll.getText().trim();
+            if (!rollText.isEmpty()) {
+                try {
+                    roll = Long.parseLong(rollText);
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        if (roll == -1) {
+            view.showMessage("Please select a student from the table first.", "Select Student",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        try {
+            StudentReportData data = model.getStudentReportData(roll);
+            if (data == null) {
+                view.showMessage("Student record not found in database.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            StudentReportView reportView = new StudentReportView(view, data);
+
+            // Wire actions inside the report dialog
+            reportView.btnExportPdf.addActionListener(e -> handleExportPdf(reportView, data));
+            reportView.btnSendEmail.addActionListener(e -> handleSendEmail(reportView, data));
+
+            reportView.setVisible(true);
+
+        } catch (SQLException ex) {
+            view.showMessage("Database error while loading student report: " + ex.getMessage(),
+                    "Database Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void handleExportPdf(StudentReportView reportView, StudentReportData data) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle("Export Academic Report as PDF");
+        String defaultName = "Academic_Report_" + data.getRollNo() + ".pdf";
+        chooser.setSelectedFile(new File(defaultName));
+        chooser.setFileFilter(new FileNameExtensionFilter("PDF Documents (*.pdf)", "pdf"));
+
+        int userSelection = chooser.showSaveDialog(reportView);
+        if (userSelection == JFileChooser.APPROVE_OPTION) {
+            File fileToSave = chooser.getSelectedFile();
+            if (!fileToSave.getName().toLowerCase().endsWith(".pdf")) {
+                fileToSave = new File(fileToSave.getParentFile(), fileToSave.getName() + ".pdf");
+            }
+
+            final File target = fileToSave;
+            reportView.btnExportPdf.setEnabled(false);
+
+            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    PDFReportGenerator.generateReport(data, target);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    reportView.btnExportPdf.setEnabled(true);
+                    try {
+                        get();
+                        JOptionPane.showMessageDialog(reportView,
+                                "PDF report successfully exported to:\n" + target.getAbsolutePath(),
+                                "Export Successful", JOptionPane.INFORMATION_MESSAGE);
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(reportView,
+                                "Failed to generate PDF: " + ex.getMessage(),
+                                "PDF Export Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            };
+            worker.execute();
+        }
+    }
+
+    private void handleSendEmail(StudentReportView reportView, StudentReportData data) {
+        String email = data.getEmail();
+        if (email == null || email.trim().isEmpty() || !EmailService.isValidEmail(email)) {
+            JOptionPane.showMessageDialog(reportView,
+                    "Student does not have a valid registered email address (" + (email == null || email.isEmpty() ? "None" : email) + ").\n"
+                    + "Please update the student's email address in the Students tab first.",
+                    "Invalid Email", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (!EmailService.isConfigured()) {
+            showSmtpConfigHelpDialog(reportView);
+            return;
+        }
+
+        // Required Confirmation Dialog:
+        // "Are you sure you want to send the academic report to [student email]?"
+        int confirm = JOptionPane.showConfirmDialog(reportView,
+                "Are you sure you want to send the academic report to " + email.trim() + "?\n\n"
+                + "Student Name: " + data.getName() + "\n"
+                + "Roll Number: " + data.getRollNo() + "\n"
+                + "Recipient Email: " + email.trim() + "\n"
+                + "Attachment: Academic_Report_" + data.getRollNo() + ".pdf",
+                "Confirm Email Dispatch", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        // Asynchronous sending via SwingWorker to avoid freezing the EDT
+        reportView.btnSendEmail.setEnabled(false);
+        String originalText = reportView.btnSendEmail.getText();
+        reportView.btnSendEmail.setText("Sending Email, Please Wait...");
+
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                File tempPdf = File.createTempFile("Academic_Report_" + data.getRollNo() + "_", ".pdf");
+                tempPdf.deleteOnExit();
+                PDFReportGenerator.generateReport(data, tempPdf);
+                EmailService.sendReportEmail(data.getName(), email.trim(), data.getRollNo(), tempPdf);
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                reportView.btnSendEmail.setEnabled(true);
+                reportView.btnSendEmail.setText(originalText);
+                try {
+                    get();
+                    JOptionPane.showMessageDialog(reportView,
+                            "Academic report has been successfully sent to " + email.trim() + "!",
+                            "Email Dispatched Successfully", JOptionPane.INFORMATION_MESSAGE);
+                } catch (Exception ex) {
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    JOptionPane.showMessageDialog(reportView,
+                            "Failed to send email:\n" + cause.getMessage() + "\n\n"
+                            + "Troubleshooting Tips:\n"
+                            + "• Ensure internet connectivity is active.\n"
+                            + "• For Gmail SMTP, generate a 16-character App Password (not your normal Gmail password).\n"
+                            + "• Verify 'smtp.properties' in the application root directory.",
+                            "Email Delivery Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void showSmtpConfigHelpDialog(Component parent) {
+        String msg = "SMTP Email Configuration Required\n\n"
+                + "To send student academic reports via email, configure your SMTP settings in 'smtp.properties' in the application folder.\n\n"
+                + "Example smtp.properties:\n"
+                + "  mail.smtp.host=smtp.gmail.com\n"
+                + "  mail.smtp.port=587\n"
+                + "  mail.smtp.auth=true\n"
+                + "  mail.smtp.starttls.enable=true\n"
+                + "  mail.smtp.user=your_email@gmail.com\n"
+                + "  mail.smtp.password=your_16_digit_gmail_app_password\n\n"
+                + "Alternatively, set environment variables:\n"
+                + "  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS\n\n"
+                + "A template 'smtp.properties.example' is provided in the project folder.";
+        JOptionPane.showMessageDialog(parent, msg, "Email Configuration Needed", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void setupSearchFilter(JTextField searchField, TableRowSorter<DefaultTableModel> sorter) {

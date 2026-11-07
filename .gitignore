@@ -1,0 +1,10 @@
+# Local credentials configuration (DO NOT COMMIT REAL CREDENTIALS)
+smtp.properties
+
+# Compiled Java class files
+*.class
+
+# Temporary PDF reports
+Academic_Report_*.pdf
+test_report*.pdf
+

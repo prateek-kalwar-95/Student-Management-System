@@ -10,7 +10,11 @@ public class DatabaseModel {
     private final String url = "jdbc:sqlite:student_management.db";
 
     public Connection connect() throws SQLException {
-        return DriverManager.getConnection(url);
+        Connection conn = DriverManager.getConnection(url);
+        Statement stmt = conn.createStatement();
+        stmt.execute("PRAGMA foreign_keys = ON;");
+        stmt.close();
+        return conn;
     }
 
     public void initDatabase() throws SQLException {
@@ -52,6 +56,9 @@ public class DatabaseModel {
                     + "UNIQUE(roll_no, course_code)"
                     + ");";
             stmt.execute(createEnrollmentsTable);
+
+            // Ensure composite unique index exists for duplicate prevention
+            stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_enrollment_roll_course ON enrollments(roll_no, course_code);");
 
             // Insert initial sample data if empty
             insertSampleDataIfEmpty(conn);
@@ -214,6 +221,35 @@ public class DatabaseModel {
         return list;
     }
 
+    /**
+     * FEATURE 2: Returns unique student records directly from students master table.
+     */
+    public List<Object[]> getUniqueStudents() throws SQLException {
+        return getAllStudents();
+    }
+
+    /**
+     * Fetches a single student's details by roll number.
+     */
+    public Object[] getStudentByRollNo(long rollNo) throws SQLException {
+        String sql = "SELECT roll_no, name, email, department, phone FROM students WHERE roll_no = ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return new Object[]{
+                            rs.getLong("roll_no"),
+                            rs.getString("name"),
+                            rs.getString("email"),
+                            rs.getString("department"),
+                            rs.getString("phone")
+                    };
+                }
+            }
+        }
+        return null;
+    }
+
     // ==========================================
     // COURSE CRUD OPERATIONS
     // ==========================================
@@ -334,6 +370,158 @@ public class DatabaseModel {
             }
         }
         return list;
+    }
+
+    /**
+     * Checks if a student is already enrolled in a specific course.
+     */
+    public boolean isStudentEnrolledInCourse(long rollNo, String courseCode) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM enrollments WHERE roll_no = ? AND course_code = ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            pstmt.setString(2, courseCode);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    /**
+     * Checks if updating an enrollment would create a duplicate with another record.
+     */
+    public boolean isDuplicateEnrollment(long rollNo, String courseCode, int excludeEnrollmentId) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM enrollments WHERE roll_no = ? AND course_code = ? AND id <> ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            pstmt.setString(2, courseCode);
+            pstmt.setInt(3, excludeEnrollmentId);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    /**
+     * Fetches all courses enrolled by a particular student.
+     */
+    public List<Object[]> getEnrolledCoursesForStudent(long rollNo) throws SQLException {
+        List<Object[]> list = new ArrayList<>();
+        String sql = "SELECT e.id, c.course_code, c.course_name, c.credits, "
+                   + "e.attendance_pct, e.attendance_marks, e.exam_marks, e.total_marks, e.grade "
+                   + "FROM enrollments e "
+                   + "JOIN courses c ON e.course_code = c.course_code "
+                   + "WHERE e.roll_no = ? "
+                   + "ORDER BY c.course_code ASC";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new Object[]{
+                            rs.getInt("id"),
+                            rs.getString("course_code"),
+                            rs.getString("course_name"),
+                            rs.getInt("credits"),
+                            rs.getDouble("attendance_pct"),
+                            rs.getDouble("attendance_marks"),
+                            rs.getDouble("exam_marks"),
+                            rs.getDouble("total_marks"),
+                            rs.getString("grade")
+                    });
+                }
+            }
+        }
+        return list;
+    }
+
+    /**
+     * Inserts a new enrollment record.
+     */
+    public void addEnrollment(long rollNo, String courseCode, double attendancePct, double examMarks) throws SQLException {
+        double attMarks = calculateAttendanceMarks(attendancePct);
+        double total = examMarks + attMarks;
+        String grade = calculateGrade(total);
+
+        String sql = "INSERT INTO enrollments(roll_no, course_code, attendance_pct, attendance_marks, exam_marks, total_marks, grade) "
+                   + "VALUES(?, ?, ?, ?, ?, ?, ?)";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            pstmt.setString(2, courseCode);
+            pstmt.setDouble(3, attendancePct);
+            pstmt.setDouble(4, attMarks);
+            pstmt.setDouble(5, examMarks);
+            pstmt.setDouble(6, total);
+            pstmt.setString(7, grade);
+            pstmt.executeUpdate();
+        }
+    }
+
+    /**
+     * Updates an existing enrollment record by primary key ID.
+     */
+    public void updateEnrollmentById(int id, long rollNo, String courseCode, double attendancePct, double examMarks) throws SQLException {
+        double attMarks = calculateAttendanceMarks(attendancePct);
+        double total = examMarks + attMarks;
+        String grade = calculateGrade(total);
+
+        String sql = "UPDATE enrollments SET roll_no = ?, course_code = ?, attendance_pct = ?, "
+                   + "attendance_marks = ?, exam_marks = ?, total_marks = ?, grade = ? WHERE id = ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            pstmt.setString(2, courseCode);
+            pstmt.setDouble(3, attendancePct);
+            pstmt.setDouble(4, attMarks);
+            pstmt.setDouble(5, examMarks);
+            pstmt.setDouble(6, total);
+            pstmt.setString(7, grade);
+            pstmt.setInt(8, id);
+            pstmt.executeUpdate();
+        }
+    }
+
+    /**
+     * FEATURE 3: Fetches comprehensive data for an individual student report.
+     */
+    public StudentReportData getStudentReportData(long rollNo) throws SQLException {
+        Object[] stud = getStudentByRollNo(rollNo);
+        if (stud == null) {
+            return null;
+        }
+
+        String name = (String) stud[1];
+        String email = (String) stud[2];
+        String dept = (String) stud[3];
+        String phone = (String) stud[4];
+
+        StudentReportData report = new StudentReportData(rollNo, name, email, dept, phone);
+
+        String sql = "SELECT c.course_code, c.course_name, c.credits, "
+                   + "e.attendance_pct, e.attendance_marks, e.exam_marks, e.total_marks, e.grade "
+                   + "FROM enrollments e "
+                   + "JOIN courses c ON e.course_code = c.course_code "
+                   + "WHERE e.roll_no = ? "
+                   + "ORDER BY c.course_code ASC";
+
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    StudentReportData.CoursePerformance cp = new StudentReportData.CoursePerformance(
+                            rs.getString("course_code"),
+                            rs.getString("course_name"),
+                            rs.getInt("credits"),
+                            rs.getDouble("attendance_pct"),
+                            rs.getDouble("attendance_marks"),
+                            rs.getDouble("exam_marks"),
+                            rs.getDouble("total_marks"),
+                            rs.getString("grade")
+                    );
+                    report.addCourse(cp);
+                }
+            }
+        }
+
+        report.recalculate();
+        return report;
     }
 
     // ==========================================

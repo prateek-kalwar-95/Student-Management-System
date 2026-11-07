@@ -24,6 +24,8 @@ public class MainView extends JFrame {
     public JButton btnStudUpdate = new JButton("Update Selected");
     public JButton btnStudDelete = new JButton("Delete Selected");
     public JButton btnStudClear = new JButton("Clear Form");
+    public JButton btnStudViewReport = new JButton("View Student Report");
+    public JButton btnStudViewReportTable = new JButton("View Student Report");
 
     public DefaultTableModel studTableModel;
     public JTable studTable;
@@ -47,6 +49,7 @@ public class MainView extends JFrame {
 
     // --- TAB 3: ENROLLMENTS & GRADES ---
     public JComboBox<String> comboEnrollStudent = new JComboBox<>();
+    public JLabel lblStudentEnrolledCourses = new JLabel("Enrolled Courses: (None selected)");
     public JComboBox<String> comboEnrollCourse = new JComboBox<>();
     public JTextField txtAttendancePct = new JTextField(10);
     public JTextField txtExamMarks = new JTextField(10);
@@ -151,16 +154,31 @@ public class MainView extends JFrame {
         btnPanel.add(btnStudClear);
 
         gbc.gridx = 0;
-        gbc.gridy = row;
+        gbc.gridy = row++;
         gbc.gridwidth = 2;
         gbc.insets = new Insets(16, 6, 6, 6);
         formPanel.add(btnPanel, gbc);
+
+        // Dedicated Feature 3 button: View Student Report (Styled Green with Hover)
+        stylePrimaryGreenButton(btnStudViewReport);
+        btnStudViewReport.setToolTipText("Generate comprehensive academic and attendance report for selected student");
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        gbc.gridwidth = 2;
+        gbc.insets = new Insets(8, 6, 6, 6);
+        formPanel.add(btnStudViewReport, gbc);
 
         // Table Panel (Right)
         JPanel tablePanel = new JPanel(new BorderLayout(8, 8));
         JPanel searchBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         searchBar.add(new JLabel("Search Students:"));
         searchBar.add(txtStudSearch);
+
+        // Top-right View Student Report button (Styled Green with Hover)
+        stylePrimaryGreenButton(btnStudViewReportTable);
+        btnStudViewReportTable.setToolTipText("View detailed academic report for selected student");
+        searchBar.add(Box.createHorizontalStrut(10));
+        searchBar.add(btnStudViewReportTable);
 
         studTableModel = new DefaultTableModel(new String[]{"Roll No", "Name", "Email", "Department", "Phone"}, 0) {
             @Override
@@ -260,6 +278,17 @@ public class MainView extends JFrame {
 
         int row = 0;
         addFormRow(formPanel, gbc, row++, "Select Student *:", comboEnrollStudent);
+
+        // FEATURE 2: Display enrolled courses separately for the selected student
+        lblStudentEnrolledCourses.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblStudentEnrolledCourses.setForeground(new Color(20, 80, 150));
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        gbc.gridwidth = 2;
+        gbc.insets = new Insets(0, 8, 8, 8);
+        formPanel.add(lblStudentEnrolledCourses, gbc);
+        gbc.insets = new Insets(6, 6, 6, 6); // restore insets
+
         addFormRow(formPanel, gbc, row++, "Select Course *:", comboEnrollCourse);
         addFormRow(formPanel, gbc, row++, "Attendance % (0-100) *:", txtAttendancePct);
         addFormRow(formPanel, gbc, row++, "Exam Marks (0-90) *:", txtExamMarks);
@@ -269,7 +298,7 @@ public class MainView extends JFrame {
         gbc.gridy = row++;
         gbc.gridwidth = 2;
         JLabel note = new JLabel("<html><small style='color: #444;'>"
-                + "ℹ <b>Grading Formula:</b> Total (100) = Exam (90) + Attendance (10)<br>"
+                + "<b>Grading Formula:</b> Total (100) = Exam (90) + Attendance (10)<br>"
                 + "Attendance Criteria: &ge;90%=10m, 85%=8m, 80%=6m, 75%=4m, &lt;75%=0m</small></html>");
         formPanel.add(note, gbc);
 
@@ -312,6 +341,9 @@ public class MainView extends JFrame {
         enrollSorter = new TableRowSorter<>(enrollTableModel);
         enrollTable.setRowSorter(enrollSorter);
 
+        // FEATURE 1: Attendance dynamic color-coding cell renderer (Column 5: Attendance)
+        enrollTable.getColumnModel().getColumn(5).setCellRenderer(new AttendanceCellRenderer());
+
         tablePanel.add(searchBar, BorderLayout.NORTH);
         tablePanel.add(new JScrollPane(enrollTable), BorderLayout.CENTER);
 
@@ -340,7 +372,7 @@ public class MainView extends JFrame {
         // Lower: Attendance shortage alert table (<75%)
         JPanel alertPanel = new JPanel(new BorderLayout(8, 8));
         alertPanel.setBorder(BorderFactory.createTitledBorder(
-                BorderFactory.createEtchedBorder(), "⚠ Attendance Shortage Alert (< 75% Attendance)",
+                BorderFactory.createEtchedBorder(), "Attendance Shortage Alert (< 75% Attendance)",
                 TitledBorder.LEFT, TitledBorder.TOP, new Font("Segoe UI", Font.BOLD, 14), new Color(180, 40, 40)));
 
         shortageTableModel = new DefaultTableModel(new String[]{
@@ -351,6 +383,9 @@ public class MainView extends JFrame {
         };
         shortageTable = new JTable(shortageTableModel);
         shortageTable.setRowHeight(24);
+
+        // FEATURE 1: Attendance dynamic color-coding cell renderer (Column 4: Attendance %)
+        shortageTable.getColumnModel().getColumn(4).setCellRenderer(new AttendanceCellRenderer());
 
         JPanel bottomBtnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         bottomBtnBar.add(btnRefreshDashboard);
@@ -404,5 +439,55 @@ public class MainView extends JFrame {
     public boolean confirmDialog(String message, String title) {
         int result = JOptionPane.showConfirmDialog(this, message, title, JOptionPane.YES_NO_OPTION);
         return result == JOptionPane.YES_OPTION;
+    }
+
+    /**
+     * Styles primary action button with green theme, hover effect, and high-contrast white text.
+     */
+    public static void stylePrimaryGreenButton(JButton btn) {
+        Color normalBg = new Color(25, 135, 84);   // #198754
+        Color hoverBg = new Color(20, 108, 67);     // #146c43
+        Color pressedBg = new Color(15, 81, 50);
+
+        btn.setUI(new javax.swing.plaf.basic.BasicButtonUI());
+        btn.setBackground(normalBg);
+        btn.setForeground(Color.WHITE);
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setOpaque(true);
+        btn.setContentAreaFilled(true);
+        btn.setFocusPainted(false);
+        btn.setBorderPainted(true);
+        btn.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(20, 108, 67), 1),
+                BorderFactory.createEmptyBorder(6, 14, 6, 14)
+        ));
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        btn.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                if (btn.isEnabled()) {
+                    btn.setBackground(hoverBg);
+                }
+            }
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                if (btn.isEnabled()) {
+                    btn.setBackground(normalBg);
+                }
+            }
+            @Override
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                if (btn.isEnabled()) {
+                    btn.setBackground(pressedBg);
+                }
+            }
+            @Override
+            public void mouseReleased(java.awt.event.MouseEvent e) {
+                if (btn.isEnabled()) {
+                    btn.setBackground(btn.contains(e.getPoint()) ? hoverBg : normalBg);
+                }
+            }
+        });
     }
 }
