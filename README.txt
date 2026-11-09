@@ -61,14 +61,14 @@ FEATURE 2: Duplicate Prevention in Enrollments & Grading
 
 FEATURE 3: Comprehensive Individual Student Report (StudentReportView.java)
 - Dedicated "View Student Report" buttons in Students Management (form and table).
-- Styled in high-visibility green (#198754) with hover (#146c43) and bold white text.
+- Styled with custom GradientButton (Pistachio #C5DFCE to Mint #A8D5BA gradient with dark forest-green text).
 - Displays personal details, academic KPIs, attendance shortage alerts, and course-wise breakdown.
 - Export to PDF, Print, and Email buttons.
 
 FEATURE 4: PDF Export & Email Delivery (PDFReportGenerator.java & EmailService.java)
 - Generates high-resolution vector PDF reports (pure Java).
 - Sends email via Jakarta Mail with PDF attachment after user confirmation.
-- Send Report via Email button styled green with hover feedback.
+- Send Report via Email button styled with custom GradientButton (Pistachio-Mint gradient).
 - Configuration Priority:
   1. Environment variables: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
   2. Configuration file: smtp.properties (template in smtp.properties.example)

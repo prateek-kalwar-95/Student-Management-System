@@ -24,8 +24,8 @@ public class MainView extends JFrame {
     public JButton btnStudUpdate = new JButton("Update Selected");
     public JButton btnStudDelete = new JButton("Delete Selected");
     public JButton btnStudClear = new JButton("Clear Form");
-    public JButton btnStudViewReport = new JButton("View Student Report");
-    public JButton btnStudViewReportTable = new JButton("View Student Report");
+    public GradientButton btnStudViewReport = new GradientButton("View Student Report", 14);
+    public GradientButton btnStudViewReportTable = new GradientButton("View Student Report", 14);
 
     public DefaultTableModel studTableModel;
     public JTable studTable;
@@ -159,8 +159,7 @@ public class MainView extends JFrame {
         gbc.insets = new Insets(16, 6, 6, 6);
         formPanel.add(btnPanel, gbc);
 
-        // Dedicated Feature 3 button: View Student Report (Styled Green with Hover)
-        stylePrimaryGreenButton(btnStudViewReport);
+        // Dedicated Feature 3 button: View Student Report (Pistachio-Mint Gradient)
         btnStudViewReport.setToolTipText("Generate comprehensive academic and attendance report for selected student");
         gbc.gridx = 0;
         gbc.gridy = row++;
@@ -174,8 +173,7 @@ public class MainView extends JFrame {
         searchBar.add(new JLabel("Search Students:"));
         searchBar.add(txtStudSearch);
 
-        // Top-right View Student Report button (Styled Green with Hover)
-        stylePrimaryGreenButton(btnStudViewReportTable);
+        // Top-right View Student Report button (Pistachio-Mint Gradient)
         btnStudViewReportTable.setToolTipText("View detailed academic report for selected student");
         searchBar.add(Box.createHorizontalStrut(10));
         searchBar.add(btnStudViewReportTable);

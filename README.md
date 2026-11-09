@@ -69,7 +69,7 @@ This project is an advanced, production-grade Student Management System followin
 
 ### FEATURE 3: Comprehensive Individual Student Report (`StudentReportView.java` & `StudentReportData.java`)
 * Dedicated **"View Student Report"** buttons (form panel and table header in Students Management).
-* Styled with high-visibility professional green (`#198754`), darker hover effect (`#146c43`), and bold white text.
+* Styled with custom **`GradientButton`**: elegant Pistachio-to-Mint pastel gradient (`#C5DFCE` $\rightarrow$ `#A8D5BA`), dark forest-green text (`#244D36`), and smooth interactive states (Mint-Seafoam hover, deep Mint-Sage pressed, and soft light grey-green disabled).
 * Displays a comprehensive dialog directly querying live SQLite records:
   - **A. Personal Information Card:** Full Name, Roll No, Email, Department, Phone, Registration No, Academic Group.
   - **B. Academic Performance KPIs:** Enrolled Courses, Overall Attendance %, Total Attendance Marks, Average Total Score & Letter Grade.
@@ -88,7 +88,7 @@ This project is an advanced, production-grade Student Management System followin
   - Pure Java with **zero external PDF libraries required**.
 * **Jakarta Mail Email Integration (`EmailService.java`)**:
   - Uses Jakarta Mail 2.0.1 with SMTP support (including Gmail).
-  - High-visibility green button: **Send Report via Email** (hover feedback, white bold text, remains clickable to provide helpful config instructions if missing).
+  - Styled with custom **`GradientButton`**: **Send Report via Email** featuring the soft Pistachio-to-Mint gradient, dark forest-green text, and clear hover/click feedback.
   - Formats professional email with student name, roll number, attendance notice, and PDF attachment.
   - Requires user confirmation dialog showing student name, email, and attachment before sending.
   - Robust configuration priority:

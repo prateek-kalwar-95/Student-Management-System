@@ -23,7 +23,7 @@ public class StudentReportView extends JDialog {
     // Action Buttons
     public final JButton btnExportPdf = new JButton("Export Report as PDF");
     public final JButton btnPrint = new JButton("Print Report");
-    public final JButton btnSendEmail = new JButton("Send Report via Email");
+    public final GradientButton btnSendEmail = new GradientButton("Send Report via Email", 14);
     public final JButton btnClose = new JButton("Close Report");
 
     public JTable tableCourses;
@@ -407,10 +407,10 @@ public class StudentReportView extends JDialog {
         bar.setBackground(Color.WHITE);
         bar.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(220, 225, 235)));
 
-        // Style buttons with explicit high-contrast colors and hover feedback
+        // Style secondary buttons with high-contrast text and subtle hover feedback
         styleSecondaryButton(btnExportPdf);
         styleSecondaryButton(btnPrint);
-        stylePrimaryGreenButton(btnSendEmail);
+        // btnSendEmail is a GradientButton (Pistachio-Mint gradient with dark forest green text)
         styleSecondaryButton(btnClose);
 
         bar.add(btnExportPdf);
