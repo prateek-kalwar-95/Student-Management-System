@@ -28,9 +28,11 @@ public class DatabaseModel {
                     + "name TEXT NOT NULL,"
                     + "email TEXT,"
                     + "department TEXT,"
-                    + "phone TEXT"
+                    + "phone TEXT,"
+                    + "email_verified INTEGER NOT NULL DEFAULT 0"
                     + ");";
             stmt.execute(createStudentsTable);
+            ensureColumnExists(conn, "students", "email_verified", "INTEGER NOT NULL DEFAULT 0");
 
             // 2. Courses Table
             String createCoursesTable = "CREATE TABLE IF NOT EXISTS courses ("
@@ -59,74 +61,7 @@ public class DatabaseModel {
 
             // Ensure composite unique index exists for duplicate prevention
             stmt.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_enrollment_roll_course ON enrollments(roll_no, course_code);");
-
-            // Insert initial sample data if empty
-            insertSampleDataIfEmpty(conn);
         }
-    }
-
-    private void insertSampleDataIfEmpty(Connection conn) {
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM students")) {
-            if (rs.next() && rs.getInt(1) == 0) {
-                // Students
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO students(roll_no, name, email, department, phone) VALUES(?, ?, ?, ?, ?)")) {
-                    insertStudentRow(ps, 101, "Alice Johnson", "alice@example.com", "Computer Science", "9876543210");
-                    insertStudentRow(ps, 102, "Bob Smith", "bob@example.com", "Information Tech", "9876543211");
-                    insertStudentRow(ps, 103, "Charlie Davis", "charlie@example.com", "Electronics", "9876543212");
-                }
-
-                // Courses
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO courses(course_code, course_name, credits, instructor) VALUES(?, ?, ?, ?)")) {
-                    insertCourseRow(ps, "CS101", "Data Structures & Algorithms", 4, "Dr. Robert Adams");
-                    insertCourseRow(ps, "CS102", "Object Oriented Programming (Java)", 4, "Prof. Sarah Miller");
-                    insertCourseRow(ps, "CS103", "Database Management Systems", 3, "Dr. Kevin Lee");
-                }
-
-                // Check and insert sample enrollments
-                try (Statement stmt2 = conn.createStatement();
-                     ResultSet rs2 = stmt2.executeQuery("SELECT COUNT(*) FROM enrollments")) {
-                    if (rs2.next() && rs2.getInt(1) == 0) {
-                        saveEnrollmentWithConn(conn, 101, "CS101", 92.0, 82.0);
-                        saveEnrollmentWithConn(conn, 101, "CS102", 86.0, 75.0);
-                        saveEnrollmentWithConn(conn, 102, "CS101", 76.0, 68.0);
-                        saveEnrollmentWithConn(conn, 103, "CS103", 68.0, 52.0);
-                    }
-                }
-            } else {
-                // If students exist but enrollments table is empty, seed enrollments
-                try (Statement stmt2 = conn.createStatement();
-                     ResultSet rs2 = stmt2.executeQuery("SELECT COUNT(*) FROM enrollments")) {
-                    if (rs2.next() && rs2.getInt(1) == 0) {
-                        saveEnrollmentWithConn(conn, 101, "CS101", 92.0, 82.0);
-                        saveEnrollmentWithConn(conn, 101, "CS102", 86.0, 75.0);
-                        saveEnrollmentWithConn(conn, 102, "CS101", 76.0, 68.0);
-                        saveEnrollmentWithConn(conn, 103, "CS103", 68.0, 52.0);
-                    }
-                }
-            }
-        } catch (SQLException ex) {
-            System.err.println("Sample data note: " + ex.getMessage());
-        }
-    }
-
-    private void insertStudentRow(PreparedStatement ps, long roll, String name, String email, String dept, String phone) throws SQLException {
-        ps.setLong(1, roll);
-        ps.setString(2, name);
-        ps.setString(3, email);
-        ps.setString(4, dept);
-        ps.setString(5, phone);
-        ps.executeUpdate();
-    }
-
-    private void insertCourseRow(PreparedStatement ps, String code, String name, int credits, String inst) throws SQLException {
-        ps.setString(1, code);
-        ps.setString(2, name);
-        ps.setInt(3, credits);
-        ps.setString(4, inst);
-        ps.executeUpdate();
     }
 
     // ==========================================
@@ -172,26 +107,93 @@ public class DatabaseModel {
     // STUDENT CRUD OPERATIONS
     // ==========================================
 
+    private void ensureColumnExists(Connection conn, String table, String column, String definition) throws SQLException {
+        boolean exists = false;
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("PRAGMA table_info(" + table + ");")) {
+            while (rs.next()) {
+                if (column.equalsIgnoreCase(rs.getString("name"))) {
+                    exists = true;
+                    break;
+                }
+            }
+        }
+        if (!exists) {
+            try (Statement alter = conn.createStatement()) {
+                alter.execute("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition + ";");
+            }
+        }
+    }
+
     public void addStudent(long rollNo, String name, String email, String department, String phone) throws SQLException {
-        String sql = "INSERT INTO students(roll_no, name, email, department, phone) VALUES(?, ?, ?, ?, ?)";
+        addStudent(rollNo, name, email, department, phone, false);
+    }
+
+    public void addStudent(long rollNo, String name, String email, String department, String phone, boolean emailVerified) throws SQLException {
+        String sql = "INSERT INTO students(roll_no, name, email, department, phone, email_verified) VALUES(?, ?, ?, ?, ?, ?)";
         try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setLong(1, rollNo);
             pstmt.setString(2, name);
             pstmt.setString(3, email);
             pstmt.setString(4, department);
             pstmt.setString(5, phone);
+            pstmt.setInt(6, emailVerified ? 1 : 0);
             pstmt.executeUpdate();
         }
     }
 
     public void updateStudent(long rollNo, String name, String email, String department, String phone) throws SQLException {
-        String sql = "UPDATE students SET name = ?, email = ?, department = ?, phone = ? WHERE roll_no = ?";
+        Object[] existing = getStudentByRollNo(rollNo);
+        boolean keepVerified = false;
+        if (existing != null && existing[2] != null && email != null
+                && existing[2].toString().trim().equalsIgnoreCase(email.trim())) {
+            keepVerified = isEmailVerified(rollNo);
+        }
+        updateStudent(rollNo, name, email, department, phone, keepVerified);
+    }
+
+    public void updateStudent(long rollNo, String name, String email, String department, String phone, boolean emailVerified) throws SQLException {
+        String sql = "UPDATE students SET name = ?, email = ?, department = ?, phone = ?, email_verified = ? WHERE roll_no = ?";
         try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
             pstmt.setString(1, name);
             pstmt.setString(2, email);
             pstmt.setString(3, department);
             pstmt.setString(4, phone);
-            pstmt.setLong(5, rollNo);
+            pstmt.setInt(5, emailVerified ? 1 : 0);
+            pstmt.setLong(6, rollNo);
+            pstmt.executeUpdate();
+        }
+    }
+
+    public boolean isEmailInUse(String email, long excludeRollNo) throws SQLException {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+        String sql = "SELECT COUNT(*) FROM students WHERE LOWER(TRIM(email)) = LOWER(TRIM(?)) AND roll_no != ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setString(1, email.trim());
+            pstmt.setLong(2, excludeRollNo);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    public boolean isEmailVerified(long rollNo) throws SQLException {
+        String sql = "SELECT COALESCE(email_verified, 0) FROM students WHERE roll_no = ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setLong(1, rollNo);
+            try (ResultSet rs = pstmt.executeQuery()) {
+                return rs.next() && rs.getInt(1) == 1;
+            }
+        }
+    }
+
+    public void markEmailVerified(long rollNo, boolean verified) throws SQLException {
+        String sql = "UPDATE students SET email_verified = ? WHERE roll_no = ?";
+        try (Connection conn = connect(); PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            pstmt.setInt(1, verified ? 1 : 0);
+            pstmt.setLong(2, rollNo);
             pstmt.executeUpdate();
         }
     }
@@ -206,7 +208,9 @@ public class DatabaseModel {
 
     public List<Object[]> getAllStudents() throws SQLException {
         List<Object[]> list = new ArrayList<>();
-        String sql = "SELECT roll_no, name, email, department, phone FROM students ORDER BY roll_no ASC";
+        String sql = "SELECT roll_no, name, email, department, phone, "
+                   + "CASE WHEN COALESCE(email_verified, 0) = 1 THEN 'Verified' ELSE 'Unverified' END AS email_status "
+                   + "FROM students ORDER BY roll_no ASC";
         try (Connection conn = connect(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
             while (rs.next()) {
                 list.add(new Object[]{
@@ -214,7 +218,8 @@ public class DatabaseModel {
                         rs.getString("name"),
                         rs.getString("email"),
                         rs.getString("department"),
-                        rs.getString("phone")
+                        rs.getString("phone"),
+                        rs.getString("email_status")
                 });
             }
         }
@@ -556,9 +561,52 @@ public class DatabaseModel {
         }
     }
 
+    public static class LowAttendanceRecipient {
+        private final long rollNo;
+        private final String name;
+        private final String email;
+        private final boolean emailVerified;
+        private int shortageCourseCount;
+        private int dangerCourseCount;
+        private double lowestAttendancePct;
+        private final StringBuilder coursesSummary = new StringBuilder();
+
+        public LowAttendanceRecipient(long rollNo, String name, String email, boolean emailVerified, double initialPct) {
+            this.rollNo = rollNo;
+            this.name = name != null ? name : "";
+            this.email = email != null ? email.trim() : "";
+            this.emailVerified = emailVerified;
+            this.lowestAttendancePct = initialPct;
+        }
+
+        public void addShortageCourse(String courseCode, double attendancePct) {
+            shortageCourseCount++;
+            if (attendancePct < 50.0) {
+                dangerCourseCount++;
+            }
+            if (attendancePct < lowestAttendancePct) {
+                lowestAttendancePct = attendancePct;
+            }
+            if (coursesSummary.length() > 0) {
+                coursesSummary.append(", ");
+            }
+            coursesSummary.append(courseCode).append(" (").append(String.format("%.1f%%", attendancePct)).append(")");
+        }
+
+        public long getRollNo() { return rollNo; }
+        public String getName() { return name; }
+        public String getEmail() { return email; }
+        public boolean isEmailVerified() { return emailVerified; }
+        public int getShortageCourseCount() { return shortageCourseCount; }
+        public int getDangerCourseCount() { return dangerCourseCount; }
+        public double getLowestAttendancePct() { return lowestAttendancePct; }
+        public String getCoursesSummary() { return coursesSummary.toString(); }
+    }
+
     public List<Object[]> getLowAttendanceStudents() throws SQLException {
         List<Object[]> list = new ArrayList<>();
-        String sql = "SELECT s.roll_no, s.name, c.course_code, c.course_name, e.attendance_pct "
+        String sql = "SELECT s.roll_no, s.name, c.course_code, c.course_name, e.attendance_pct, "
+                   + "CASE WHEN COALESCE(s.email_verified, 0) = 1 THEN 'Verified' ELSE 'Unverified' END AS email_status "
                    + "FROM enrollments e "
                    + "JOIN students s ON e.roll_no = s.roll_no "
                    + "JOIN courses c ON e.course_code = c.course_code "
@@ -571,10 +619,44 @@ public class DatabaseModel {
                         rs.getString("name"),
                         rs.getString("course_code"),
                         rs.getString("course_name"),
-                        String.format("%.1f%%", rs.getDouble("attendance_pct"))
+                        String.format("%.1f%%", rs.getDouble("attendance_pct")),
+                        rs.getString("email_status")
                 });
             }
         }
         return list;
+    }
+
+    /**
+     * Groups all enrollments below 75% by unique student (ordered most critical first)
+     * so bulk attendance alerts send one consolidated email per student.
+     */
+    public List<LowAttendanceRecipient> getLowAttendanceRecipients() throws SQLException {
+        java.util.Map<Long, LowAttendanceRecipient> grouped = new java.util.LinkedHashMap<>();
+        String sql = "SELECT s.roll_no, s.name, s.email, COALESCE(s.email_verified, 0) AS email_verified, "
+                   + "c.course_code, e.attendance_pct "
+                   + "FROM enrollments e "
+                   + "JOIN students s ON e.roll_no = s.roll_no "
+                   + "JOIN courses c ON e.course_code = c.course_code "
+                   + "WHERE e.attendance_pct < 75.0 "
+                   + "ORDER BY e.attendance_pct ASC, s.roll_no ASC, c.course_code ASC";
+        try (Connection conn = connect(); Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery(sql)) {
+            while (rs.next()) {
+                long rollNo = rs.getLong("roll_no");
+                double attPct = rs.getDouble("attendance_pct");
+                LowAttendanceRecipient rec = grouped.get(rollNo);
+                if (rec == null) {
+                    rec = new LowAttendanceRecipient(
+                            rollNo,
+                            rs.getString("name"),
+                            rs.getString("email"),
+                            rs.getInt("email_verified") == 1,
+                            attPct);
+                    grouped.put(rollNo, rec);
+                }
+                rec.addShortageCourse(rs.getString("course_code"), attPct);
+            }
+        }
+        return new ArrayList<>(grouped.values());
     }
 }

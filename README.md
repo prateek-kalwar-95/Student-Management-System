@@ -101,7 +101,7 @@ This project is an advanced, production-grade Student Management System followin
 
 ## 3. External Dependencies & Libraries
 
-All dependencies are included in the `lib/` directory and project root:
+All dependencies are included in the `lib/` directory:
 
 | Library | Version | File | Purpose |
 |---|---|---|---|
@@ -111,8 +111,7 @@ All dependencies are included in the `lib/` directory and project root:
 
 ### VS Code Java Classpath Configuration
 To ensure VS Code's Java extension resolves all dependencies without import errors:
-- The project includes `.vscode/settings.json` configured with `"java.project.referencedLibraries": ["lib/**/*.jar", "*.jar"]`.
-- The project also includes Eclipse-compatible `.classpath` and `.project` files pointing to the libraries in `lib/`.
+- The project includes `.vscode/settings.json` configured with `"java.project.referencedLibraries": ["lib/**/*.jar"]`.
 
 ---
 
@@ -160,18 +159,10 @@ Ensure JDK 17 or higher is installed and navigate to the project directory:
   ```powershell
   javac -cp ".;lib/*" *.java
   ```
-  *(Or with root JARs)*:
-  ```powershell
-  javac -cp ".;*" *.java
-  ```
 
 * **macOS / Linux:**
   ```bash
   javac -cp ".:lib/*" *.java
-  ```
-  *(Or with root JARs)*:
-  ```bash
-  javac -cp ".:*" *.java
   ```
 
 ### B. Execution Command:
@@ -180,18 +171,10 @@ Ensure JDK 17 or higher is installed and navigate to the project directory:
   ```powershell
   java -cp ".;lib/*" Main
   ```
-  *(Or with wildcard)*:
-  ```powershell
-  java -cp ".;*" Main
-  ```
 
 * **macOS / Linux:**
   ```bash
   java -cp ".:lib/*" Main
-  ```
-  *(Or with wildcard)*:
-  ```bash
-  java -cp ".:*" Main
   ```
 
 ### C. Running Automated Integration Tests:

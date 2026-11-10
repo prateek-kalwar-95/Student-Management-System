@@ -1,10 +1,10 @@
 # Local credentials configuration (DO NOT COMMIT REAL CREDENTIALS)
 smtp.properties
 
-# Compiled Java class files
+# Compiled Java class files and IDE build output
 *.class
+bin/
 
 # Temporary PDF reports
 Academic_Report_*.pdf
 test_report*.pdf
-

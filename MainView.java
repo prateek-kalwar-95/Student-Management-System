@@ -1,6 +1,7 @@
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
@@ -15,6 +16,11 @@ public class MainView extends JFrame {
     public JTextField txtStudRoll = new JTextField(15);
     public JTextField txtStudName = new JTextField(15);
     public JTextField txtStudEmail = new JTextField(15);
+    public JLabel lblStudEmailHint = new JLabel("Required - Must be a valid email address");
+    public JButton btnEditEmail = new JButton("Edit Email");
+    public JButton btnVerifyEmail = new JButton("Verify OTP");
+    public JPanel emailActionPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+    public JPanel emailContainer = new JPanel(new BorderLayout(0, 3));
     public JTextField txtStudDept = new JTextField(15);
     public JTextField txtStudPhone = new JTextField(15);
     public JLabel lblStudPhoneHint = new JLabel("Must be a 10-digit number");
@@ -71,6 +77,9 @@ public class MainView extends JFrame {
     public JLabel lblStatAvgScore = new JLabel("0.0", SwingConstants.CENTER);
     public DefaultTableModel shortageTableModel;
     public JTable shortageTable;
+    public JLabel lblShortageSummary = new JLabel("0 shortage record(s)");
+    public JButton btnDashboardViewReport = new JButton("View Student Report");
+    public GradientButton btnBulkAlertEmail = new GradientButton("Send Bulk Attendance Alerts", 14);
     public JButton btnRefreshDashboard = new JButton("Refresh Dashboard");
 
     public MainView() {
@@ -133,7 +142,32 @@ public class MainView extends JFrame {
         int row = 0;
         addFormRow(formPanel, gbc, row++, "Roll Number *:", txtStudRoll);
         addFormRow(formPanel, gbc, row++, "Full Name *:", txtStudName);
-        addFormRow(formPanel, gbc, row++, "Email Address:", txtStudEmail);
+
+        txtStudEmail.setToolTipText("Enter a valid email address (e.g. name@gmail.com)");
+        lblStudEmailHint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
+        lblStudEmailHint.setForeground(new Color(110, 110, 110));
+
+        btnEditEmail.setMargin(new Insets(2, 8, 2, 8));
+        btnEditEmail.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnEditEmail.setToolTipText("Unlock the student's email field to change it");
+        btnEditEmail.setVisible(false);
+
+        btnVerifyEmail.setMargin(new Insets(2, 8, 2, 8));
+        btnVerifyEmail.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        btnVerifyEmail.setToolTipText("Check email domain (DNS MX) and send a 6-digit OTP to verify inbox");
+
+        emailActionPanel.setOpaque(false);
+        emailActionPanel.removeAll();
+        emailActionPanel.add(btnEditEmail);
+        emailActionPanel.add(btnVerifyEmail);
+
+        emailContainer.setOpaque(false);
+        emailContainer.removeAll();
+        emailContainer.add(txtStudEmail, BorderLayout.NORTH);
+        emailContainer.add(lblStudEmailHint, BorderLayout.CENTER);
+        emailContainer.add(emailActionPanel, BorderLayout.SOUTH);
+
+        addFormRow(formPanel, gbc, row++, "Email Address *:", emailContainer);
         addFormRow(formPanel, gbc, row++, "Department:", txtStudDept);
         txtStudPhone.setToolTipText("Enter a 10-digit phone number (numbers only)");
         lblStudPhoneHint.setFont(new Font("Segoe UI", Font.ITALIC, 11));
@@ -178,7 +212,8 @@ public class MainView extends JFrame {
         searchBar.add(Box.createHorizontalStrut(10));
         searchBar.add(btnStudViewReportTable);
 
-        studTableModel = new DefaultTableModel(new String[]{"Roll No", "Name", "Email", "Department", "Phone"}, 0) {
+        studTableModel = new DefaultTableModel(
+                new String[]{"Roll No", "Name", "Email", "Department", "Phone", "Email Status"}, 0) {
             @Override
             public boolean isCellEditable(int r, int c) { return false; }
         };
@@ -188,11 +223,16 @@ public class MainView extends JFrame {
         studSorter = new TableRowSorter<>(studTableModel);
         studTable.setRowSorter(studSorter);
 
+        studTable.getColumnModel().getColumn(5).setCellRenderer(createEmailStatusCellRenderer());
+        studTable.getColumnModel().getColumn(0).setPreferredWidth(65);
+        studTable.getColumnModel().getColumn(2).setPreferredWidth(180);
+        studTable.getColumnModel().getColumn(5).setPreferredWidth(85);
+
         tablePanel.add(searchBar, BorderLayout.NORTH);
         tablePanel.add(new JScrollPane(studTable), BorderLayout.CENTER);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, formPanel, tablePanel);
-        splitPane.setDividerLocation(340);
+        splitPane.setDividerLocation(395);
         panel.add(splitPane, BorderLayout.CENTER);
         return panel;
     }
@@ -374,25 +414,70 @@ public class MainView extends JFrame {
                 TitledBorder.LEFT, TitledBorder.TOP, new Font("Segoe UI", Font.BOLD, 14), new Color(180, 40, 40)));
 
         shortageTableModel = new DefaultTableModel(new String[]{
-                "Roll No", "Student Name", "Course Code", "Course Name", "Attendance %"
+                "Roll No", "Student Name", "Course Code", "Course Name", "Attendance %", "Email Status"
         }, 0) {
             @Override
             public boolean isCellEditable(int r, int c) { return false; }
         };
         shortageTable = new JTable(shortageTableModel);
         shortageTable.setRowHeight(24);
+        shortageTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 
         // FEATURE 1: Attendance dynamic color-coding cell renderer (Column 4: Attendance %)
         shortageTable.getColumnModel().getColumn(4).setCellRenderer(new AttendanceCellRenderer());
+        shortageTable.getColumnModel().getColumn(5).setCellRenderer(createEmailStatusCellRenderer());
+        shortageTable.getColumnModel().getColumn(0).setPreferredWidth(75);
+        shortageTable.getColumnModel().getColumn(5).setPreferredWidth(90);
 
-        JPanel bottomBtnBar = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        bottomBtnBar.add(btnRefreshDashboard);
+        lblShortageSummary.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+        lblShortageSummary.setForeground(new Color(90, 95, 105));
+
+        btnBulkAlertEmail.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnBulkAlertEmail.setBorder(BorderFactory.createEmptyBorder(6, 14, 6, 14));
+        btnBulkAlertEmail.setToolTipText("Preview low-attendance students (< 75%) and send consolidated warning emails in background");
+        btnDashboardViewReport.setToolTipText("View detailed academic report for selected student in the table");
+
+        JPanel rightBtnGroup = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        rightBtnGroup.setOpaque(false);
+        rightBtnGroup.add(btnDashboardViewReport);
+        rightBtnGroup.add(btnBulkAlertEmail);
+        rightBtnGroup.add(btnRefreshDashboard);
+
+        JPanel bottomBtnBar = new JPanel(new BorderLayout(8, 0));
+        bottomBtnBar.setBorder(new EmptyBorder(4, 2, 0, 2));
+        bottomBtnBar.add(lblShortageSummary, BorderLayout.WEST);
+        bottomBtnBar.add(rightBtnGroup, BorderLayout.EAST);
 
         alertPanel.add(new JScrollPane(shortageTable), BorderLayout.CENTER);
         alertPanel.add(bottomBtnBar, BorderLayout.SOUTH);
 
         panel.add(alertPanel, BorderLayout.CENTER);
         return panel;
+    }
+
+    public static DefaultTableCellRenderer createEmailStatusCellRenderer() {
+        return new DefaultTableCellRenderer() {
+            @Override
+            public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+                                                           boolean hasFocus, int row, int column) {
+                Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+                setHorizontalAlignment(SwingConstants.CENTER);
+                String status = value != null ? value.toString() : "";
+                if (!isSelected) {
+                    if ("Verified".equalsIgnoreCase(status)) {
+                        c.setBackground(new Color(212, 237, 218));
+                        c.setForeground(new Color(21, 87, 36));
+                    } else if (status.startsWith("Blocked")) {
+                        c.setBackground(new Color(248, 215, 218));
+                        c.setForeground(new Color(132, 32, 41));
+                    } else {
+                        c.setBackground(new Color(255, 243, 205));
+                        c.setForeground(new Color(133, 100, 4));
+                    }
+                }
+                return c;
+            }
+        };
     }
 
     private JPanel createStatCard(String title, JLabel valueLabel, Color barColor) {
