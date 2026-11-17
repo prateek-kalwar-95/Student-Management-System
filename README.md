@@ -21,47 +21,95 @@
 
 This project follows the **Model-View-Controller (MVC)** pattern strictly separating data, UI, and business logic:
 
-```mermaid
-flowchart TD
-    User(["👤 User"])
-
-    User -->|Interacts with GUI| MV
-    User -->|Sees results| MV
-
-    subgraph VIEW["🖥️ View Layer"]
-        MV["MainView.java"]
-        SRV["StudentReportView.java"]
-        GB["GradientButton.java"]
-        ACR["AttendanceCellRenderer.java"]
-    end
-
-    MV -->|Events & Clicks| AppController
-
-    subgraph CTRL["⚙️ Controller"]
-        AppController["AppController.java"]
-    end
-
-    AppController -->|CRUD Operations| DM
-    AppController -->|Send Email| ES
-    AppController -->|Generate PDF| PDF
-
-    subgraph MODEL["🗄️ Model"]
-        DM["DatabaseModel.java"]
-    end
-
-    subgraph SERVICES["🔧 Services"]
-        ES["EmailService.java"]
-        PDF["PDFReportGenerator.java"]
-        SRD["StudentReportData.java"]
-    end
-
-    DM -->|SQL Queries| DB[("🗃️ student_management.db")]
-    DB -->|Results| DM
-    DM --> SRD
-    SRD --> AppController
-    ES -->|Status| AppController
-    PDF -->|PDF File| AppController
-    AppController -->|Update UI| MV
+```
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                           👤  U S E R                                       ║
+║              (Interacts via Java Swing GUI Desktop Application)              ║
+╚══════════════════════════════════╦═════════════════════════════════════════╝
+                                   ║  GUI Events (clicks, form input, search)
+                                   ▼
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     🖥️  V I E W   L A Y E R                                 ║
+╠══════════════════╦═══════════════════╦══════════════════╦═══════════════════╣
+║  MainView.java   ║ StudentReport     ║ GradientButton   ║ AttendanceCell    ║
+║  ─────────────── ║ View.java         ║ .java            ║ Renderer.java     ║
+║  • JTabbedPane   ║ ───────────────── ║ ──────────────── ║ ───────────────── ║
+║  Tab 1: Students ║ • Student info    ║ • Custom Swing   ║ • Colors rows by  ║
+║  Tab 2: Courses  ║   card panel      ║   button with    ║   attendance %:   ║
+║  Tab 3: Enroll   ║ • KPI cards       ║   gradient paint ║   ≥75% → Green    ║
+║  Tab 4: Dashboard║ • Course table    ║ • Hover & press  ║   50-74% → Yellow ║
+║  • Live search   ║ • Attendance      ║   animations     ║   <50% → Red      ║
+║  • Email status  ║   risk banners    ║                  ║                   ║
+║  • Shortage table║ • PDF/Email/Print ║                  ║                   ║
+╚══════════════════╩═══════════════════╩══════════════════╩═══════════════════╝
+                                   ║  ActionEvents, ListSelectionEvents
+                                   ▼
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                  ⚙️  C O N T R O L L E R   L A Y E R                        ║
+║                         AppController.java                                   ║
+╠══════════════════════════════════════════════════════════════════════════════╣
+║  Student CRUD         │ Course CRUD           │ Enrollment CRUD              ║
+║  ─────────────────    │ ─────────────────     │ ───────────────────          ║
+║  • Add / Update /     │ • Add / Update /      │ • Enroll student             ║
+║    Delete student     │   Delete course       │ • Duplicate guard            ║
+║  • Email edit lock    │ • Live table refresh  │ • Grade auto-calc            ║
+║  • Edit Email toggle  │                       │ • Attendance marks           ║
+╠═══════════════════════╪═══════════════════════╪══════════════════════════════╣
+║  Email Verification   │ Report & PDF          │ Dashboard & Alerts           ║
+║  ─────────────────    │ ─────────────────     │ ───────────────────          ║
+║  Level 1: Syntax      │ • SwingWorker async   │ • KPI card refresh           ║
+║  Level 2: DNS MX      │   PDF generation      │ • Shortage table load        ║
+║  Level 3: OTP via     │ • Print via Java      │ • Bulk email SwingWorker     ║
+║    Gmail SMTP         │   PrinterJob          │ • Progress dialog &          ║
+║  • Domain typo hint   │ • Email dispatch with │   AtomicBoolean cancel       ║
+║  • Duplicate check    │   PDF attachment      │ • Per-student alert email    ║
+╚═══════════════╦═══════════════════════════════╦══════════════════════════════╝
+                ║  CRUD / Query calls           ║  Service calls
+        ┌───────╩──────────┐           ┌────────╩─────────────────────────────┐
+        ▼                  │           ▼                                       │
+╔═══════════════╗          │  ╔════════════════════╗  ╔═════════════════════╗  │
+║ 🗄️  M O D E L ║          │  ║  EmailService.java  ║  ║ PDFReportGenerator  ║  │
+║ ────────────  ║          │  ║  ──────────────────  ║  ║ .java               ║  │
+║ DatabaseModel ║          │  ║ • isValidEmail()     ║  ║ ─────────────────── ║  │
+║ .java         ║          │  ║ • suggestDomainTypo()║  ║ • Pure Java PDF 1.4 ║  │
+║ ────────────  ║          │  ║ • verifyEmailDomain()║  ║ • No external libs  ║  │
+║ Students CRUD ║          │  ║   (JNDI DNS MX/A)   ║  ║ • Header banner     ║  │
+║ Courses CRUD  ║          │  ║ • generateOtp()      ║  ║ • KPI cards         ║  │
+║ Enroll CRUD   ║          │  ║ • sendVerification   ║  ║ • Course table      ║  │
+║ Grade calc    ║          │  ║   OtpEmail()         ║  ║ • Attendance alert  ║  │
+║ Attendance    ║          │  ║ • sendReportEmail()  ║  ║ • Footer            ║  │
+║   marks calc  ║          │  ║ • sendLowAttendance  ║  ╚═════════════════════╝  │
+║ email_verified║          │  ║   AlertEmail()       ║                           │
+║ getLowAttend  ║          │  ║ • isReservedDomain() ║  ╔═════════════════════╗  │
+║ Recipients()  ║          │  ╚════════════════════╝  ║ StudentReportData    ║  │
+╚══════╦════════╝          │                           ║ .java               ║  │
+       ║                   └───────────────────────────║ ─────────────────── ║──┘
+       ║ SQL (JDBC)                                    ║ • Report DTO        ║
+       ▼                                               ║ • CoursePerformance ║
+╔══════════════════════════════════════════╗           ║ • Shortage count    ║
+║  🗃️  student_management.db  (SQLite)     ║           ║ • Overall grade     ║
+╠══════════════════════════════════════════╣           ╚═════════════════════╝
+║                                          ║
+║  students                                ║
+║  ┌──────────┬──────┬───────┬──────────┬──────┬────────────────┐
+║  │ roll_no  │ name │ email │ dept     │phone │ email_verified │
+║  │ INTEGER  │ TEXT │ TEXT  │ TEXT     │ TEXT │ INTEGER (0/1)  │
+║  │ PK       │      │       │          │      │ DEFAULT 0      │
+║  └──────────┴──────┴───────┴──────────┴──────┴────────────────┘
+║                                          ║
+║  courses                                 ║
+║  ┌─────────────┬─────────────┬─────────┬────────────┐
+║  │ course_code │ course_name │ credits │ instructor │
+║  │ TEXT PK     │ TEXT        │ INTEGER │ TEXT       │
+║  └─────────────┴─────────────┴─────────┴────────────┘
+║                                          ║
+║  enrollments  (FK → students, courses)   ║
+║  ┌────┬─────────┬─────────────┬──────────────┬───────────┬──────────────┬──────────┬───────┐
+║  │ id │ roll_no │ course_code │ attendance_% │ att_marks │ exam_marks   │ total    │ grade │
+║  │ PK │ FK      │ FK          │ REAL         │ REAL      │ REAL (max90) │ REAL 100 │ TEXT  │
+║  └────┴─────────┴─────────────┴──────────────┴───────────┴──────────────┴──────────┴───────┘
+║      UNIQUE(roll_no, course_code)   │   ON DELETE CASCADE                   ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 ```
 
 ### Key Design Principles
