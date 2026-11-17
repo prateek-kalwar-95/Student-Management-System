@@ -5,6 +5,74 @@
 - **Team No.:** 2
 - **Project Title:** Student Management System
 
+## Submitted By
+
+| Roll No. | Name |
+|---|---|
+| 13000124018 | Prateek Kalwar |
+| 13000123031 | Chandrima Saha |
+| 13000125235 | Debadrita Banerjee |
+| 13000124019 | Pratush Raj |
+| 13000124007 | Ayush Kumar Singh |
+
+---
+
+## 🏗️ Architecture
+
+This project follows the **Model-View-Controller (MVC)** pattern strictly separating data, UI, and business logic:
+
+```mermaid
+flowchart TD
+    User(["👤 User"])
+
+    User -->|Interacts with GUI| MV
+    User -->|Sees results| MV
+
+    subgraph VIEW["🖥️ View Layer"]
+        MV["MainView.java"]
+        SRV["StudentReportView.java"]
+        GB["GradientButton.java"]
+        ACR["AttendanceCellRenderer.java"]
+    end
+
+    MV -->|Events & Clicks| AppController
+
+    subgraph CTRL["⚙️ Controller"]
+        AppController["AppController.java"]
+    end
+
+    AppController -->|CRUD Operations| DM
+    AppController -->|Send Email| ES
+    AppController -->|Generate PDF| PDF
+
+    subgraph MODEL["🗄️ Model"]
+        DM["DatabaseModel.java"]
+    end
+
+    subgraph SERVICES["🔧 Services"]
+        ES["EmailService.java"]
+        PDF["PDFReportGenerator.java"]
+        SRD["StudentReportData.java"]
+    end
+
+    DM -->|SQL Queries| DB[("🗃️ student_management.db")]
+    DB -->|Results| DM
+    DM --> SRD
+    SRD --> AppController
+    ES -->|Status| AppController
+    PDF -->|PDF File| AppController
+    AppController -->|Update UI| MV
+```
+
+### Key Design Principles
+| Principle | Implementation |
+|---|---|
+| **Separation of Concerns** | Model never imports Swing; View never touches SQL |
+| **Non-blocking UI** | `SwingWorker` for all PDF, email & DNS tasks |
+| **Fail-safe email** | 3-level verification: Syntax → DNS MX → OTP |
+| **Data integrity** | Foreign keys + `UNIQUE(roll_no, course_code)` in SQLite |
+| **Zero PDF dependency** | PDF generated with raw Java2D — no iText/Apache PDFBox |
+
 ---
 
 ## 1. Project Overview & Features
